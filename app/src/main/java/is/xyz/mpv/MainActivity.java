@@ -1,11 +1,14 @@
 package is.xyz.mpv;
 
+import android.content.Context;
 import android.content.Intent;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.text.Html;
+import android.util.Log;
 import android.view.View;
 
 import com.nononsenseapps.filepicker.AbstractFilePickerFragment;
@@ -30,6 +33,11 @@ public class MainActivity extends AppCompatActivity implements AbstractFilePicke
         ActionBar ab = getSupportActionBar();
         if (ab != null)
             ab.setTitle(Html.fromHtml("<font color=\"#ffffff\">" + getString(R.string.mpv_activity) + "</font>"));
+
+        AudioManager audioManager = (AudioManager) this.getSystemService(Context.AUDIO_SERVICE);
+        String rate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE);
+        String size = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER);
+        Log.d("mpv", "Buffer Size and sample rate: " + "Size :" + size + " & Rate: " + rate);
     }
 
     private void playFile(String filepath) {

@@ -120,7 +120,8 @@ public class MPVActivity extends Activity {
             filepath = i.getStringExtra("filepath");
         }
 
-        MPVLib.command(new String[] { "loadfile", filepath });
+        // MPVLib.command(new String[] { "loadfile", filepath });
+        mView.loadfile(filepath);
 
         String configDir = getApplicationContext().getFilesDir().getPath();
         MPVLib.setconfigdir(configDir);
@@ -200,6 +201,11 @@ public class MPVActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         mView.onResume();
+    }
+
+    @Override protected void onDestroy() {
+        mView.onDestroy();
+        super.onDestroy();
     }
 
     private void showControls() {

@@ -39,7 +39,7 @@ class MPVView extends GLSurfaceView {
         setEGLConfigChooser(8, 8, 8, 0, 16, 0);
         setEGLContextClientVersion(3);
         setPreserveEGLContextOnPause(true);  // TODO: this won't work all the time. we should manually recrete the context in onSurfaceCreated
-        setRenderer(new Renderer());
+        setRenderer(new Renderer(this));
     }
 
     @Override public void onPause() {
@@ -50,6 +50,19 @@ class MPVView extends GLSurfaceView {
     @Override public void onResume() {
         super.onResume();
         MPVLib.play();
+    }
+
+    public void onDestroy() {
+        MPVLib.destroy();
+    }
+
+    public final Object lock = new Object();
+    public String filepath;
+
+    public void loadfile(String filepath) {
+        synchronized (lock) {
+            this.filepath = filepath;
+        }
     }
 
     @Override public boolean onTouchEvent(MotionEvent ev) {
@@ -70,6 +83,12 @@ class MPVView extends GLSurfaceView {
     }
 
     private static class Renderer implements GLSurfaceView.Renderer {
+        MPVView view;
+
+        public Renderer(MPVView view) {
+            this.view = view;
+        }
+
         public void onDrawFrame(GL10 gl) {
             MPVLib.step();
         }
@@ -80,6 +99,7 @@ class MPVView extends GLSurfaceView {
 
         public void onSurfaceCreated(GL10 gl, EGLConfig config) {
             MPVLib.init();
+            MPVLib.command(new String[] { "loadfile", view.filepath });
         }
     }
 }

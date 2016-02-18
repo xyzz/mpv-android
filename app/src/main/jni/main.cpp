@@ -12,6 +12,7 @@ extern "C" {
 #include <mpv/opengl_cb.h>
 
 #include <EGL/egl.h>
+#include <pthread.h>
 
 #include "main.h"
 
@@ -22,6 +23,7 @@ extern "C" {
 
 extern "C" {
     jvoidfunc(init) (JNIEnv* env, jobject obj);
+    jvoidfunc(destroy) (JNIEnv *env, jobject obj);
 
     jvoidfunc(command) (JNIEnv* env, jobject obj, jobjectArray jarray);
     jvoidfunc(resize) (JNIEnv* env, jobject obj, jint width, jint height);
@@ -55,27 +57,31 @@ static void *get_proc_address_mpv(void *fn_ctx, const char *name)
     return (void*)eglGetProcAddress(name);
 }
 
-static int cq_push(char **e)
-{
-    for (int i = 0; i < ARRAYLEN(g_command_queue); i++) {
-        if (g_command_queue[i] != NULL)
-            continue;
-        g_command_queue[i] = e;
-        return 0;
-    }
-    return -1;
-}
+static pthread_mutex_t mpv_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static void cq_free(char **e)
-{
-    for (int i = 0; e[i] != NULL; i++)
-        free(e[i]);
-    free(e);
+#if 1
+#define LOCK() pthread_mutex_lock(&mpv_mutex)
+#define UNLOCK() pthread_mutex_unlock(&mpv_mutex)
+#else
+#define LOCK()
+#define UNLOCK()
+#endif
+
+jvoidfunc(destroy) (JNIEnv *env, jobject obj) {
+    LOCK();
+    if (mpv) {
+        mpv_opengl_cb_uninit_gl(mpv_gl);
+        mpv_gl = NULL;
+        mpv_terminate_destroy(mpv);
+        mpv = NULL;
+    }
+    UNLOCK();
 }
 
 jvoidfunc(init) (JNIEnv* env, jobject obj) {
+    LOCK();
     if (mpv)
-        return;
+        die("init called twice");
 
     // JavaVM* jvm = NULL;
     // env->GetJavaVM(&jvm);
@@ -98,6 +104,10 @@ jvoidfunc(init) (JNIEnv* env, jobject obj) {
 
     // mpv_set_option_string(mpv, "vd", "lavc:h264_mediacodec");
 
+    mpv_set_option_string(mpv, "display-fps", "60");
+    mpv_set_option_string(mpv, "video-sync", "display-resample");
+    // mpv_set_option_string(mpv, "dump-stats", "/sdcard/stats.txt");
+
     if (mpv_initialize(mpv) < 0)
         die("mpv init failed");
 
@@ -110,19 +120,18 @@ jvoidfunc(init) (JNIEnv* env, jobject obj) {
 
     if (mpv_set_option_string(mpv, "vo", "opengl-cb") < 0)
         die("failed to set VO");
-    if (mpv_set_option_string(mpv, "ao", "openal") < 0)
+    if (mpv_set_option_string(mpv, "ao", "opensles:sample-rate=48000:frames-per-buffer=960") < 0)
         die("failed to set AO");
 
-    for (int i = 0; i < ARRAYLEN(g_command_queue); i++) {
-        if (g_command_queue[i] == NULL)
-            break;
-        char **cmd = g_command_queue[i];
-        mpv_command(mpv, (const char**) cmd);
-        cq_free(cmd);
-    }
+    UNLOCK();
 }
 
-#define CHKVALID() if (!mpv) return;
+static void cq_free(char **e)
+{
+    for (int i = 0; e[i] != NULL; i++)
+        free(e[i]);
+    free(e);
+}
 
 jvoidfunc(command) (JNIEnv* env, jobject obj, jobjectArray jarray) {
     char **command;
@@ -137,15 +146,16 @@ jvoidfunc(command) (JNIEnv* env, jobject obj, jobjectArray jarray) {
         env->ReleaseStringUTFChars(jstr, str);
     }
     command[jarray_l] = NULL;
+    LOCK();
     if (mpv) {
         mpv_command(mpv, (const char**) command);
         cq_free(command);
-        return;
     }
-    if(cq_push(command) < 0) {
-        ALOGE("command queue full");
-        cq_free(command);
-    }
+    UNLOCK();
+    // if(cq_push(command) < 0) {
+        // ALOGE("command queue full");
+        // cq_free(command);
+    // }
 }
 
 static void mouse_pos(int x, int y) {
@@ -165,60 +175,82 @@ static void mouse_trigger(int down, int btn) {
 }
 
 jvoidfunc(touch_1down) (JNIEnv* env, jobject obj, jint x, jint y) {
-    CHKVALID();
-    mouse_pos(x, y);
-    mouse_trigger(1, 0);
+    LOCK();
+    if (mpv) {
+        mouse_pos(x, y);
+        mouse_trigger(1, 0);
+    }
+    UNLOCK();
 }
 
 jvoidfunc(touch_1move) (JNIEnv* env, jobject obj, jint x, jint y) {
-    CHKVALID();
-    mouse_pos(x, y);
+    LOCK();
+    if (mpv)
+        mouse_pos(x, y);
+    UNLOCK();
 }
 
 jvoidfunc(touch_1up) (JNIEnv* env, jobject obj, jint x, jint y) {
-    CHKVALID();
-    mouse_trigger(0, 0);
+    LOCK();
+    if (mpv)
+        mouse_trigger(0, 0);
     // move the cursor to the top left corner where it doesn't trigger the OSC
     // FIXME: this causes the OSC to receive a mouse_btn0 up event with x and y == 0
     //        but sometimes it gets the correct coords (threading/async?)
     //mouse_pos(0, 0);
+    UNLOCK();
 }
 
 jvoidfunc(resize) (JNIEnv* env, jobject obj, jint width, jint height) {
+    LOCK();
     g_width = width;
     g_height = height;
+    UNLOCK();
 }
 
 jvoidfunc(step) (JNIEnv* env, jobject obj) {
-    mpv_opengl_cb_draw(mpv_gl, 0, g_width, -g_height);
+    LOCK();
+    if (mpv) {
+        mpv_opengl_cb_report_flip(mpv_gl, 0);
+        mpv_opengl_cb_draw(mpv_gl, 0, g_width, -g_height);
 
-    while (1) {
-        mpv_event *mp_event = mpv_wait_event(mpv, 0);
-        mpv_event_log_message *msg;
-        if (mp_event->event_id == MPV_EVENT_NONE)
-            break;
-        switch (mp_event->event_id) {
-        case MPV_EVENT_LOG_MESSAGE:
-            msg = (mpv_event_log_message*)mp_event->data;
-            ALOGV("[%s:%s] %s", msg->prefix, msg->level, msg->text);
-            break;
-        default:
-            ALOGV("event: %s\n", mpv_event_name(mp_event->event_id));
-            break;
+        //double avsync = -1;
+        //mpv_get_property(mpv, "avsync", MPV_FORMAT_DOUBLE, &avsync);
+        //ALOGV("avsync: %.6f\n", avsync);
+
+        while (1) {
+            mpv_event *mp_event = mpv_wait_event(mpv, 0);
+            mpv_event_log_message *msg;
+            if (mp_event->event_id == MPV_EVENT_NONE)
+                break;
+            switch (mp_event->event_id) {
+            case MPV_EVENT_LOG_MESSAGE:
+                msg = (mpv_event_log_message*)mp_event->data;
+                ALOGV("[%s:%s] %s", msg->prefix, msg->level, msg->text);
+                break;
+            default:
+                ALOGV("event: %s\n", mpv_event_name(mp_event->event_id));
+                break;
+            }
         }
     }
+    UNLOCK();
 }
 
 jvoidfunc(play) (JNIEnv* env, jobject obj) {
-    CHKVALID();
+    LOCK();
     int paused = 0;
-    mpv_set_property(mpv, "pause", MPV_FORMAT_FLAG, &paused);
+    if (mpv)
+        mpv_set_property(mpv, "pause", MPV_FORMAT_FLAG, &paused);
+    UNLOCK();
 }
 
 jvoidfunc(pause) (JNIEnv* env, jobject obj) {
-    CHKVALID();
+    LOCK();
     int paused = 1;
-    mpv_set_property(mpv, "pause", MPV_FORMAT_FLAG, &paused);
+    if (mpv)
+        mpv_set_property(mpv, "pause", MPV_FORMAT_FLAG, &paused);
+    UNLOCK();
 }
 
 jvoidfunc(setconfigdir) (JNIEnv* env, jobject obj, jstring jpath) {
@@ -228,26 +260,28 @@ jvoidfunc(setconfigdir) (JNIEnv* env, jobject obj, jstring jpath) {
 }
 
 jfunc(getpropertyint, jint) (JNIEnv *env, jobject obj, jstring jproperty) {
-    if (!mpv)
-        return 0;
-
     const char *prop = env->GetStringUTFChars(jproperty, NULL);
     int64_t value = 0;
-    int result = mpv_get_property(mpv, prop, MPV_FORMAT_INT64, &value);
-    if (result < 0)
-        ALOGE("mpv_get_property(%s) returned error %s", prop, mpv_error_string(result));
+    LOCK();
+    if (mpv) {
+        int result = mpv_get_property(mpv, prop, MPV_FORMAT_INT64, &value);
+        if (result < 0)
+            ALOGE("mpv_get_property(%s) returned error %s", prop, mpv_error_string(result));
+    }
+    UNLOCK();
     env->ReleaseStringUTFChars(jproperty, prop);
     return value;
 }
 
 jvoidfunc(setpropertyint) (JNIEnv *env, jobject obj, jstring jproperty, jint value) {
-    if (!mpv)
-        return;
-
     const char *prop = env->GetStringUTFChars(jproperty, NULL);
     int64_t value64 = value;
-    int result = mpv_set_property(mpv, prop, MPV_FORMAT_INT64, &value64);
-    if (result < 0)
-        ALOGE("mpv_set_property(%s, %d) returned error %s", prop, value, mpv_error_string(result));
+    LOCK();
+    if (mpv) {
+        int result = mpv_set_property(mpv, prop, MPV_FORMAT_INT64, &value64);
+        if (result < 0)
+            ALOGE("mpv_set_property(%s, %d) returned error %s", prop, value, mpv_error_string(result));
+    }
+    UNLOCK();
     env->ReleaseStringUTFChars(jproperty, prop);
 }
