@@ -1,10 +1,32 @@
 #!/bin/bash -e
 
-prefix_rev=2017-12-22
-cd buildscripts
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd $DIR
+
+source ./version.sh
+
+build_prefix() {
+	echo "==> Building the prefix ($travis_tarball)..."
+
+	echo "==> Fetching deps"
+	TRAVIS=1 ./download-deps.sh
+
+	rm -rf prefix && mkdir prefix
+	for x in ${dep_mpv[@]}; do
+		echo "==> Building $x"
+		./buildall.sh $x
+	done
+
+	echo "==> Compressing the prefix"
+	tar -cvzf $travis_tarball -C prefix .
+
+	echo "==> Uploading the prefix"
+	curl -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/x-gzip" --data-binary @$travis_tarball \
+		"https://uploads.github.com/repos/xyzz/prebuilt-prefixes/releases/9014417/assets?name=$travis_tarball"
+}
 
 if [ "$1" == "install" ]; then
-	TRAVIS=1 ./download.sh
+	TRAVIS=1 ./download-sdk.sh
 	# link global SDK into our dir structure
 	ln -s /usr/local/android-sdk ./sdk/android-sdk-linux
 
@@ -13,8 +35,7 @@ if [ "$1" == "install" ]; then
 	tar -xzf master.tgz -C deps/mpv --strip-components=1 && rm master.tgz
 
 	mkdir -p prefix
-	wget "https://kitsunemimi.pw/tmp/prefix_${prefix_rev}.tgz" -O prefix.tgz
-	tar -xzf prefix.tgz -C prefix && rm prefix.tgz
+	( wget "https://github.com/xyzz/prebuilt-prefixes/releases/download/prefixes/$travis_tarball" -O prefix.tgz && tar -xzf prefix.tgz -C prefix && rm prefix.tgz ) || build_prefix
 	exit 0
 elif [ "$1" == "build" ]; then
 	:
