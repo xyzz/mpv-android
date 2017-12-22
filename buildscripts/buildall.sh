@@ -2,7 +2,7 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $DIR
-source ./version.sh
+. ./version.sh
 
 cleanbuild=0
 nodeps=0

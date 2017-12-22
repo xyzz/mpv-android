@@ -25,3 +25,5 @@ dep_mpv_android=(mpv)
 
 
 travis_tarball="prefix-ndk-${v_ndk}-lua-${v_lua}-libass-${v_libass}-fribidi-${v_fribidi}-freetype-${v_freetype}-gnutls-${v_gnutls}-nettle-${v_nettle}-ffmpeg-${v_travis_ffmpeg}.tgz"
+
+wget="wget --progress=bar:force:noscroll"

@@ -35,7 +35,11 @@ if [ "$1" == "install" ]; then
 	tar -xzf master.tgz -C deps/mpv --strip-components=1 && rm master.tgz
 
 	mkdir -p prefix
-	( wget "https://github.com/xyzz/prebuilt-prefixes/releases/download/prefixes/$travis_tarball" -O prefix.tgz && tar -xzf prefix.tgz -C prefix && rm prefix.tgz ) || build_prefix
+	(
+		wget "https://github.com/xyzz/prebuilt-prefixes/releases/download/prefixes/$travis_tarball" -O prefix.tgz \
+		&& tar -xzf prefix.tgz -C prefix \
+		&& rm prefix.tgz
+	) || build_prefix
 	exit 0
 elif [ "$1" == "build" ]; then
 	:

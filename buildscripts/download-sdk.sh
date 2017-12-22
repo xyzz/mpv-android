@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-source ./version.sh
+. ./version.sh
 
 . ./path.sh # load $os var
 
@@ -39,10 +39,10 @@ mkdir -p sdk && cd sdk
 if [ $TRAVIS -eq 1 ]; then
 	:
 elif [ "$sdk_ext" == "tgz" ]; then
-	wget --progress=bar:force "http://dl.google.com/android/android-sdk_${v_sdk}-${os}.${sdk_ext}" -O - | \
+	$wget "http://dl.google.com/android/android-sdk_${v_sdk}-${os}.${sdk_ext}" -O - | \
 		tar -xz -f -
 elif [ "$sdk_ext" == "zip" ]; then
-	wget --progress=bar:force "http://dl.google.com/android/android-sdk_${v_sdk}-${os}.${sdk_ext}"
+	$wget "http://dl.google.com/android/android-sdk_${v_sdk}-${os}.${sdk_ext}"
 	unzip -q "android-sdk_${v_sdk}-${os}.${sdk_ext}"
 	rm "android-sdk_${v_sdk}-${os}.${sdk_ext}"
 fi
@@ -51,7 +51,7 @@ fi
 	build-tools-26.0.2,android-25,extra-android-m2repository,platform-tools
 
 # android-ndk-$v_ndk
-wget --progress=bar:force "http://dl.google.com/android/repository/android-ndk-${v_ndk}-${os_ndk}-x86_64.zip"
+$wget "http://dl.google.com/android/repository/android-ndk-${v_ndk}-${os_ndk}-x86_64.zip"
 unzip -q "android-ndk-${v_ndk}-${os_ndk}-x86_64.zip"
 rm "android-ndk-${v_ndk}-${os_ndk}-x86_64.zip"
 
@@ -75,7 +75,7 @@ for tc in ndk-toolchain{,-arm64,-x64}; do
 
 	rm -rf bin/py* lib/{lib,}py* # remove python because it can cause breakage
 	# add gas-preprocessor.pl for ffmpeg + clang on ARM
-	wget --progress=bar:force "https://git.libav.org/?p=gas-preprocessor.git;a=blob_plain;f=gas-preprocessor.pl;hb=HEAD" \
+	$wget "https://git.libav.org/?p=gas-preprocessor.git;a=blob_plain;f=gas-preprocessor.pl;hb=HEAD" \
 		-O bin/gas-preprocessor.pl
 	chmod +x bin/gas-preprocessor.pl
 	# make wrapper to pass api level to gcc (due to Unified Headers)
