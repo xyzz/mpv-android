@@ -17,12 +17,14 @@ build_prefix() {
 		./buildall.sh $x
 	done
 
-	echo "==> Compressing the prefix"
-	tar -cvzf $travis_tarball -C prefix .
+	if [ -z "$GITHUB_TOKEN" ]; then
+		echo "==> Compressing the prefix"
+		tar -cvzf $travis_tarball -C prefix .
 
-	echo "==> Uploading the prefix"
-	curl -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/x-gzip" --data-binary @$travis_tarball \
-		"https://uploads.github.com/repos/xyzz/prebuilt-prefixes/releases/9014417/assets?name=$travis_tarball"
+		echo "==> Uploading the prefix"
+		curl -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/x-gzip" --data-binary @$travis_tarball \
+			"https://uploads.github.com/repos/xyzz/prebuilt-prefixes/releases/9014417/assets?name=$travis_tarball"
+	fi
 }
 
 if [ "$1" == "install" ]; then
