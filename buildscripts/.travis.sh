@@ -17,7 +17,7 @@ build_prefix() {
 		./buildall.sh $x
 	done
 
-	if [ -z "$GITHUB_TOKEN" ]; then
+	if [ ! -z "$GITHUB_TOKEN" ]; then
 		echo "==> Compressing the prefix"
 		tar -cvzf $travis_tarball -C prefix .
 
