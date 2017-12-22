@@ -3,7 +3,7 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $DIR
 
-source ./version.sh
+. ./version.sh
 
 build_prefix() {
 	echo "==> Building the prefix ($travis_tarball)..."
@@ -31,12 +31,12 @@ if [ "$1" == "install" ]; then
 	ln -s /usr/local/android-sdk ./sdk/android-sdk-linux
 
 	mkdir -p deps/mpv
-	wget https://github.com/mpv-player/mpv/archive/master.tar.gz -O master.tgz
+	$WGET https://github.com/mpv-player/mpv/archive/master.tar.gz -O master.tgz
 	tar -xzf master.tgz -C deps/mpv --strip-components=1 && rm master.tgz
 
 	mkdir -p prefix
 	(
-		wget "https://github.com/xyzz/prebuilt-prefixes/releases/download/prefixes/$travis_tarball" -O prefix.tgz \
+		$WGET "https://github.com/xyzz/prebuilt-prefixes/releases/download/prefixes/$travis_tarball" -O prefix.tgz \
 		&& tar -xzf prefix.tgz -C prefix \
 		&& rm prefix.tgz
 	) || build_prefix
@@ -49,8 +49,8 @@ fi
 
 ./buildall.sh --no-deps mpv || {
 	# show logfile if configure failed
-	[ ! -f deps/mpv/_build/config.h ] && cat deps/mpv/_build/config.log;
-	exit 1;
+	[ ! -f deps/mpv/_build/config.h ] && cat deps/mpv/_build/config.log
+	exit 1
 }
 
 ./buildall.sh --no-deps
